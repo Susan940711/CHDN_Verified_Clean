@@ -5,17 +5,25 @@ import importlib.util
 import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-CLEANER_SCRIPT = ROOT_DIR / "data" / "CHDN_clean" / "CHDN_EPI_clean.py"
+
+def _find_file(start: Path, filename: str) -> Path | None:
+    for base in [start, *start.parents]:
+        if not base.exists():
+            continue
+        for path in base.rglob(filename):
+            if path.is_file():
+                return path.resolve()
+    return None
 
 
 def _load_cleaner_module():
-    if not CLEANER_SCRIPT.exists():
-        raise FileNotFoundError(f"Cleaner script not found: {CLEANER_SCRIPT}")
+    cleaner_script = _find_file(Path(__file__).resolve(), "CHDN_EPI_clean.py")
+    if cleaner_script is None:
+        raise FileNotFoundError("Cleaner script not found. Searched nearby folders and parent directories.")
 
-    spec = importlib.util.spec_from_file_location("chdn_clean_stage1", CLEANER_SCRIPT)
+    spec = importlib.util.spec_from_file_location("chdn_clean_stage1", cleaner_script)
     if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load cleaner module from {CLEANER_SCRIPT}")
+        raise ImportError(f"Unable to load cleaner module from {cleaner_script}")
 
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -32,6 +40,7 @@ def run_clean(
 ) -> int:
     input_path = Path(input_path).resolve()
     output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not input_path.exists():
         raise FileNotFoundError(f"Input workbook not found: {input_path}")
