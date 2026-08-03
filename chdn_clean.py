@@ -17,17 +17,20 @@ def _find_file(start: Path, filename: str) -> Path | None:
 
 
 def _load_cleaner_module():
-    cleaner_script = _find_file(Path(__file__).resolve(), "CHDN_EPI_clean.py")
-    if cleaner_script is None:
-        raise FileNotFoundError("Cleaner script not found. Searched nearby folders and parent directories.")
-
-    spec = importlib.util.spec_from_file_location("chdn_clean_stage1", cleaner_script)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load cleaner module from {cleaner_script}")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    candidate_paths = [
+        Path(__file__).resolve().parent / "CHDN_EPI_Report" / "CHDN_EPI_clean.py",
+        Path(__file__).resolve().parent / "CHDN_EPI_clean.py",
+    ]
+    for cleaner_script in candidate_paths:
+        if not cleaner_script.exists():
+            continue
+        spec = importlib.util.spec_from_file_location("chdn_clean_stage1", cleaner_script)
+        if spec is None or spec.loader is None:
+            continue
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    raise FileNotFoundError("Cleaner script not found. Searched the bundled app folder.")
 
 
 def run_clean(
