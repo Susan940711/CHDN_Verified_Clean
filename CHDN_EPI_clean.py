@@ -56,6 +56,8 @@ QUARTER_WINDOWS = {
     "CompleteInQ4 2026": ("Q4", date(2026, 9, 21), date(2026, 12, 20)),
 }
 
+MIN_DOSE_INTERVAL_DAYS = 28
+
 TARGET_FACTOR = 0.35
 
 REFERENCE_QUARTER_TARGETS_BY_YEAR = {
@@ -641,6 +643,7 @@ def _verify_cleaned_child_rows(row_values_list: list[tuple], header_index_map: d
     dob_after_first_visit_count = 0
     later_before_prior_count = 0
     later_while_prior_not_received_count = 0
+    interval_under_min_count = 0
 
     code_values = []
     for row_values in row_values_list:
@@ -689,6 +692,9 @@ def _verify_cleaned_child_rows(row_values_list: list[tuple], header_index_map: d
             prior_source = _source_text(prior_source_aliases)
             if prior_date is not None and later_date is not None and later_date < prior_date:
                 later_before_prior_count += 1
+            if prior_date is not None and later_date is not None and 0 <= (later_date - prior_date).days < MIN_DOSE_INTERVAL_DAYS:
+                interval_under_min_count += 1
+                print(f"WARNING: interval < {MIN_DOSE_INTERVAL_DAYS} days between {prior_aliases[0]} and {later_aliases[0]} for children_code {code_value}: {(later_date - prior_date).days} days")
             if later_date is not None and prior_source == "NOT RECEIVED YET":
                 later_while_prior_not_received_count += 1
 
@@ -700,6 +706,7 @@ def _verify_cleaned_child_rows(row_values_list: list[tuple], header_index_map: d
     print(f"  DOB later than first_visit_date: {dob_after_first_visit_count}")
     print(f"  later dose earlier than prior dose: {later_before_prior_count}")
     print(f"  later dose with prior dose not received yet: {later_while_prior_not_received_count}")
+    print(f"  interval between doses < {MIN_DOSE_INTERVAL_DAYS} days (OPV/Penta/MMR): {interval_under_min_count}")
 
     return {
         "children_code_missing": missing_code_count,
@@ -707,6 +714,7 @@ def _verify_cleaned_child_rows(row_values_list: list[tuple], header_index_map: d
         "dob_after_first_visit": dob_after_first_visit_count,
         "later_before_prior": later_before_prior_count,
         "later_while_prior_not_received": later_while_prior_not_received_count,
+        "interval_under_min_days": interval_under_min_count,
     }
 
 
@@ -798,6 +806,8 @@ def _build_child_row_status(row_values: tuple, header_index_map: dict[str, int],
         prior_source = str(row_values[prior_source_idx]).strip().upper() if prior_source_idx is not None and prior_source_idx < len(row_values) and not _is_blank(row_values[prior_source_idx]) else ""
         if prior_date is not None and later_date is not None and later_date < prior_date:
             issues.append("later dose earlier than prior dose")
+        if prior_date is not None and later_date is not None and 0 <= (later_date - prior_date).days < MIN_DOSE_INTERVAL_DAYS:
+            issues.append(f"dose interval < {MIN_DOSE_INTERVAL_DAYS} days")
         if later_date is not None and prior_source == "NOT RECEIVED YET":
             issues.append("later dose with prior not received")
 
